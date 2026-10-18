@@ -1,0 +1,11 @@
+{
+  "domain": "vattenfall",
+  "name": "Vattenfall Dynamic Tariffs",
+  "codeowners": ["@user"],
+  "config_flow": true,
+  "documentation": "https://github.com/custom-components/vattenfall",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/custom-components/vattenfall/issues",
+  "version": "1.0.0"
+}

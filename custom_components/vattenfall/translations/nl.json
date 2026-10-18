@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vattenfall Dynamische Tarieven",
+        "description": "Voer je Vattenfall API-sleutel (`ocp-apim-subscription-key`) in die je uit de browser DevTools hebt gekopieerd.",
+        "data": {
+          "api_key": "API-sleutel (ocp-apim-subscription-key)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met de Vattenfall API.",
+      "invalid_auth": "Ongeldige API-sleutel.",
+      "invalid_response": "Ongeldig antwoord ontvangen van Vattenfall.",
+      "unknown": "Onverwachte fout opgetreden."
+    },
+    "abort": {
+      "already_configured": "Vattenfall Dynamische Tarieven is al geconfigureerd."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "electricity_price": {
+        "name": "Stroomprijs"
+      },
+      "gas_price": {
+        "name": "Gasprijs"
+      }
+    }
+  }
+}

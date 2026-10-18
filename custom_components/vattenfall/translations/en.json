@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vattenfall Dynamic Tariffs",
+        "description": "Enter your Vattenfall API key (`ocp-apim-subscription-key`) copied from your browser DevTools.",
+        "data": {
+          "api_key": "API Key (ocp-apim-subscription-key)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Vattenfall API.",
+      "invalid_auth": "Invalid API key.",
+      "invalid_response": "Received invalid response from Vattenfall.",
+      "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "Vattenfall Dynamic Tariffs is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "electricity_price": {
+        "name": "Electricity Price"
+      },
+      "gas_price": {
+        "name": "Gas Price"
+      }
+    }
+  }
+}
