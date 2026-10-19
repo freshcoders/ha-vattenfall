@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 import zoneinfo
 
 import async_timeout
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import homeassistant.util.dt as dt_util
@@ -22,6 +23,7 @@ class VattenfallDataCoordinator(DataUpdateCoordinator[dict]):
     def __init__(self, hass: HomeAssistant, api_key: str) -> None:
         """Initialize."""
         self.api_key = api_key
+        self._raw_data: list | None = None
         super().__init__(
             hass,
             _LOGGER,
@@ -46,7 +48,23 @@ class VattenfallDataCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:
             raise UpdateFailed(f"Error fetching Vattenfall tariffs: {err}") from err
 
+        self._raw_data = raw_data
         return self._process_tariff_data(raw_data)
+
+    @callback
+    def async_start_hourly_refresh(self) -> CALLBACK_TYPE:
+        """Recompute the current price right after each hour starts.
+
+        The API is only polled every 30 minutes, so without this the current
+        price can lag the new hour by up to half an hour.
+        """
+
+        @callback
+        def _hour_changed(_now: datetime) -> None:
+            if self._raw_data is not None:
+                self.async_set_updated_data(self._process_tariff_data(self._raw_data))
+
+        return async_track_time_change(self.hass, _hour_changed, minute=0, second=1)
 
     def _process_tariff_data(self, raw_data: list) -> dict:
         """Process and structure raw tariff JSON into sensors data."""
@@ -69,6 +87,8 @@ class VattenfallDataCoordinator(DataUpdateCoordinator[dict]):
         if electricity_raw and "tariffData" in electricity_raw:
             records = []
             for entry in electricity_raw["tariffData"]:
+                if entry.get("isMissingPeriod") or "amountInclVat" not in entry:
+                    continue
                 start_dt = dt_util.parse_datetime(entry["startTime"])
                 end_dt = dt_util.parse_datetime(entry["endTime"])
                 
@@ -109,11 +129,27 @@ class VattenfallDataCoordinator(DataUpdateCoordinator[dict]):
                 r for r in records if r["start_dt"] and r["start_dt"].astimezone(now.tzinfo).date() == tomorrow_date
             ]
 
+            # All upcoming/future hours starting from now (current hour + rest of today + tomorrow)
+            upcoming_records = [
+                r for r in records if r["end_dt"] and r["end_dt"] > now
+            ]
+
+            # Today statistics
             cheapest_today = min(today_records, key=lambda x: x["price"]) if today_records else None
             highest_today = max(today_records, key=lambda x: x["price"]) if today_records else None
             avg_today = (
                 round(sum(r["price"] for r in today_records) / len(today_records), 4)
                 if today_records
+                else None
+            )
+
+            # Tomorrow statistics (available after ~13:00-14:00 CET)
+            tomorrow_valid = len(tomorrow_records) >= 23
+            cheapest_tomorrow = min(tomorrow_records, key=lambda x: x["price"]) if tomorrow_valid else None
+            highest_tomorrow = max(tomorrow_records, key=lambda x: x["price"]) if tomorrow_valid else None
+            avg_tomorrow = (
+                round(sum(r["price"] for r in tomorrow_records) / len(tomorrow_records), 4)
+                if tomorrow_valid
                 else None
             )
 
@@ -140,9 +176,21 @@ class VattenfallDataCoordinator(DataUpdateCoordinator[dict]):
                     {"from": r["start"], "to": r["end"], "price": r["price"], "cheapest": r["cheapest"]}
                     for r in tomorrow_records
                 ],
+                "upcoming_prices": [
+                    {"from": r["start"], "to": r["end"], "price": r["price"], "cheapest": r["cheapest"]}
+                    for r in upcoming_records
+                ],
+                "tomorrow_valid": tomorrow_valid,
                 "cheapest_hour_today": cheapest_today["start"] if cheapest_today else None,
+                "cheapest_price_today": cheapest_today["price"] if cheapest_today else None,
                 "highest_hour_today": highest_today["start"] if highest_today else None,
+                "highest_price_today": highest_today["price"] if highest_today else None,
                 "average_price_today": avg_today,
+                "cheapest_hour_tomorrow": cheapest_tomorrow["start"] if cheapest_tomorrow else None,
+                "cheapest_price_tomorrow": cheapest_tomorrow["price"] if cheapest_tomorrow else None,
+                "highest_hour_tomorrow": highest_tomorrow["start"] if highest_tomorrow else None,
+                "highest_price_tomorrow": highest_tomorrow["price"] if highest_tomorrow else None,
+                "average_price_tomorrow": avg_tomorrow,
             }
 
         # Process Gas (FlexPrijsGas)
