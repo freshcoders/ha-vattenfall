@@ -194,10 +194,14 @@ class VattenfallDataCoordinator(DataUpdateCoordinator[dict]):
             }
 
         # Process Gas (FlexPrijsGas)
-        if gas_raw and "tariffData" in gas_raw and gas_raw["tariffData"]:
-            latest_gas = gas_raw["tariffData"][-1]
+        gas_entries = [
+            e for e in (gas_raw or {}).get("tariffData", [])
+            if "amountInclVat" in e and "amountExclVat" in e
+        ]
+        if gas_entries:
+            latest_gas = gas_entries[-1]
             gas_history = []
-            for entry in gas_raw["tariffData"][-14:]:
+            for entry in gas_entries[-14:]:
                 gas_history.append({
                     "date": entry["startTime"][:10],
                     "price": round(float(entry["amountInclVat"]), 4),
